@@ -37,7 +37,6 @@ def fallback_to_editor(template: str = None) -> str:
         with open(temp_file, 'r') as f:
             content = f.read()
         
-        
         lines = []
         for line in content.split('\n'):
             if line.strip() and not line.strip().startswith('#'):
@@ -68,7 +67,6 @@ def main(
     try:
         config = Config()
         
-        
         if not git.has_staged_changes():
             console.print("[red]✗[/red] No staged changes found. Run 'git add' first.")
             raise typer.Exit(1)
@@ -79,18 +77,14 @@ def main(
             console=console,
             transient=True,
         ) as progress:
-            
             task = progress.add_task("Analyzing staged changes...", total=None)
-            
             
             numstats = git.get_staged_numstat()
             if not numstats:
                 console.print("[red]✗[/red] No changes found in staged files.")
                 raise typer.Exit(1)
             
-            
             progress.update(task, description="Processing changes...")
-            
             
             diff_filter = DiffFilter(config)
             filtered_numstats = [
@@ -102,16 +96,13 @@ def main(
                 console.print("[yellow]⚠[/yellow] All changed files are ignored. Nothing to commit.")
                 raise typer.Exit(0)
             
-            
             summary = analyzer.analyze_changes(filtered_numstats)
-            
             
             progress.update(task, description="Generating commit message...")
             
             try:
                 llm = OpenAIProvider(config)
                 commit_msg = llm.generate_commit(summary)
-                
                 
                 redactor = SecretRedactor()
                 if redactor.has_potential_secrets(commit_msg):
@@ -121,30 +112,37 @@ def main(
                 console.print(f"[yellow]⚠[/yellow] AI generation failed: {e}")
                 console.print("[yellow]→[/yellow] Falling back to editor...")
                 
-                
-                template = f"""
-
-
-
-
-
-
-
+                template = f"""# Auto-commit fallback - AI generation failed
+# 
+# Error: {str(e)}
+# 
+# Analyzed changes:
+# Type: {summary.change_type}
+# Files: {summary.total_files} files changed
+# Stats: +{summary.total_added}/-{summary.total_removed} lines
 #
+# Files changed:
+"""
+                for file in summary.significant_files[:5]:
+                    template += f"# - {file.path}: +{file.added}/-{file.removed}\n"
+                
+                template += """#
+# Please write a conventional commit message:
+# Format: <type>(<scope>): <subject>
+#
+# Types: feat, fix, docs, style, refactor, perf, test, chore
 
+"""
                 
                 commit_msg = fallback_to_editor(template)
         
         processing_time = time.time() - start_time
         
-        
         console.print(f"\n[bold cyan]Generated commit message:[/bold cyan] [dim]({processing_time:.2f}s)[/dim]")
         console.print(f"[green]{commit_msg}[/green]\n")
         
-        
         if summary.total_files > 1:
             console.print(f"[dim]Files: {summary.total_files} changed (+{summary.total_added}/-{summary.total_removed})[/dim]")
-        
         
         if dry_run:
             console.print("[yellow]ℹ[/yellow] Dry run mode - no commit created")

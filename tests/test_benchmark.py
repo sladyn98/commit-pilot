@@ -1,7 +1,7 @@
 import time
 from unittest.mock import Mock
 
-import pytest
+import unittest
 
 from edgecommit.config import Config
 from edgecommit.core.analyzer import analyze_changes
@@ -23,7 +23,7 @@ def generate_large_numstat(num_files: int = 100) -> list[NumStat]:
     return stats
 
 
-class TestPerformanceBenchmark:
+class TestPerformanceBenchmark(unittest.TestCase):
     
     def test_filter_performance(self):
         config = Config()
@@ -41,8 +41,8 @@ class TestPerformanceBenchmark:
         duration = end_time - start_time
         
         
-        assert duration < 0.05, f"Filtering too slow: {duration:.3f}s"
-        assert len(filtered) == 1000  
+        self.assertLess(duration, 0.05, f"Filtering too slow: {duration:.3f}s")
+        self.assertEqual(len(filtered), 1000)  
     
     def test_analyze_large_changeset(self):
         numstats = generate_large_numstat(100)
@@ -55,10 +55,10 @@ class TestPerformanceBenchmark:
         duration = end_time - start_time
         
         
-        assert duration < 0.1, f"Analysis too slow: {duration:.3f}s"
-        assert summary.total_files == 100
-        assert summary.total_added > 0
-        assert summary.total_removed > 0
+        self.assertLess(duration, 0.1, f"Analysis too slow: {duration:.3f}s")
+        self.assertEqual(summary.total_files, 100)
+        self.assertGreater(summary.total_added, 0)
+        self.assertGreater(summary.total_removed, 0)
     
     def test_end_to_end_processing_speed(self):
         config = Config()
@@ -92,9 +92,9 @@ class TestPerformanceBenchmark:
         duration = end_time - start_time
         
         
-        assert duration < 0.05, f"End-to-end processing too slow: {duration:.3f}s"
-        assert summary.total_files == 9  
-        assert "package-lock.json" not in [f.path for f in summary.files]
+        self.assertLess(duration, 0.05, f"End-to-end processing too slow: {duration:.3f}s")
+        self.assertEqual(summary.total_files, 9)
+        self.assertNotIn("package-lock.json", [f.path for f in summary.files])
     
     def test_memory_usage_reasonable(self):
         
@@ -104,22 +104,23 @@ class TestPerformanceBenchmark:
         summary = analyze_changes(numstats)
         
         
-        assert summary.total_files == 500
+        self.assertEqual(summary.total_files, 500)
         
         
         sig_files = summary.significant_files
-        assert len(sig_files) > 0
-        assert all(f.added + f.removed > 5 for f in sig_files)
+        self.assertGreater(len(sig_files), 0)
+        self.assertTrue(all(f.added + f.removed > 5 for f in sig_files))
     
-    @pytest.mark.parametrize("num_files", [10, 50, 100, 500])
-    def test_scalability(self, num_files):
-        numstats = generate_large_numstat(num_files)
-        
-        start_time = time.time()
-        summary = analyze_changes(numstats)
-        duration = time.time() - start_time
-        
-        
-        max_expected_duration = num_files * 0.001  
-        assert duration < max_expected_duration, f"Processing {num_files} files took {duration:.3f}s"
-        assert summary.total_files == num_files
+    def test_scalability(self):
+        for num_files in [10, 50, 100, 500]:
+            with self.subTest(num_files=num_files):
+                numstats = generate_large_numstat(num_files)
+                
+                start_time = time.time()
+                summary = analyze_changes(numstats)
+                duration = time.time() - start_time
+                
+                
+                max_expected_duration = num_files * 0.001  
+                self.assertLess(duration, max_expected_duration, f"Processing {num_files} files took {duration:.3f}s")
+                self.assertEqual(summary.total_files, num_files)

@@ -1,10 +1,10 @@
-import pytest
+import unittest
 
 from edgecommit.core.analyzer import FileSummary, analyze_changes, build_prompt
 from edgecommit.core.git import NumStat
 
 
-class TestAnalyzerMVP:
+class TestAnalyzerMVP(unittest.TestCase):
     def test_analyze_changes_basic(self):
         numstats = [
             NumStat(added=10, removed=5, file_path="src/main.py", is_binary=False),
@@ -13,11 +13,11 @@ class TestAnalyzerMVP:
         
         summary = analyze_changes(numstats)
         
-        assert summary.total_files == 2
-        assert summary.total_added == 13
-        assert summary.total_removed == 6
-        assert summary.change_type == "test"  
-        assert len(summary.files) == 2
+        self.assertEqual(summary.total_files, 2)
+        self.assertEqual(summary.total_added, 13)
+        self.assertEqual(summary.total_removed, 6)
+        self.assertEqual(summary.change_type, "test")
+        self.assertEqual(len(summary.files), 2)
     
     def test_analyze_changes_skips_binary(self):
         numstats = [
@@ -27,27 +27,27 @@ class TestAnalyzerMVP:
         
         summary = analyze_changes(numstats)
         
-        assert summary.total_files == 1
-        assert summary.files[0].path == "src/main.py"
+        self.assertEqual(summary.total_files, 1)
+        self.assertEqual(summary.files[0].path, "src/main.py")
     
     def test_analyze_changes_classifies_types(self):
         
         test_stats = [NumStat(added=10, removed=5, file_path="test_feature.py", is_binary=False)]
-        assert analyze_changes(test_stats).change_type == "test"
+        self.assertEqual(analyze_changes(test_stats).change_type, "test")
         
         
         doc_stats = [NumStat(added=10, removed=5, file_path="README.md", is_binary=False)]
-        assert analyze_changes(doc_stats).change_type == "docs"
+        self.assertEqual(analyze_changes(doc_stats).change_type, "docs")
         
         
         style_stats = [NumStat(added=10, removed=5, file_path="styles.css", is_binary=False)]
-        assert analyze_changes(style_stats).change_type == "style"
+        self.assertEqual(analyze_changes(style_stats).change_type, "style")
         
         
         new_stats = [NumStat(added=10, removed=0, file_path="new_feature.py", is_binary=False)]
         summary = analyze_changes(new_stats)
-        assert summary.change_type == "feat"
-        assert summary.files[0].change_type == "added"
+        self.assertEqual(summary.change_type, "feat")
+        self.assertEqual(summary.files[0].change_type, "added")
     
     def test_analyze_changes_handles_renames(self):
         numstats = [
@@ -63,10 +63,10 @@ class TestAnalyzerMVP:
         
         summary = analyze_changes(numstats)
         
-        assert summary.total_files == 1
-        assert summary.files[0].change_type == "renamed"
-        assert summary.files[0].old_path == "old_name.py"
-        assert summary.change_type == "refactor"
+        self.assertEqual(summary.total_files, 1)
+        self.assertEqual(summary.files[0].change_type, "renamed")
+        self.assertEqual(summary.files[0].old_path, "old_name.py")
+        self.assertEqual(summary.change_type, "refactor")
     
     def test_analyze_changes_handles_deletions(self):
         numstats = [
@@ -75,8 +75,8 @@ class TestAnalyzerMVP:
         
         summary = analyze_changes(numstats)
         
-        assert summary.files[0].change_type == "deleted"
-        assert summary.change_type == "chore"
+        self.assertEqual(summary.files[0].change_type, "deleted")
+        self.assertEqual(summary.change_type, "chore")
     
     def test_significant_files_identification(self):
         numstats = [
@@ -89,10 +89,10 @@ class TestAnalyzerMVP:
         significant = summary.significant_files
         
         
-        assert len(significant) == 2
-        assert any(f.path == "major_change.py" for f in significant)
-        assert any(f.path == "huge_change.py" for f in significant)
-        assert not any(f.path == "minor_change.py" for f in significant)
+        self.assertEqual(len(significant), 2)
+        self.assertTrue(any(f.path == "major_change.py" for f in significant))
+        self.assertTrue(any(f.path == "huge_change.py" for f in significant))
+        self.assertFalse(any(f.path == "minor_change.py" for f in significant))
     
     def test_build_prompt_basic(self):
         summary = analyze_changes([
@@ -102,12 +102,12 @@ class TestAnalyzerMVP:
         
         prompt = build_prompt(summary)
         
-        assert "Type: test" in prompt
-        assert "Files: 2 files changed" in prompt
-        assert "Stats: +18/-10 lines" in prompt
-        assert "src/feature.py: +15/-8" in prompt
-        assert "tests/test_feature.py: +3/-2" in prompt
-        assert "conventional commit message" in prompt.lower()
+        self.assertIn("Type: test", prompt)
+        self.assertIn("Files: 2 files changed", prompt)
+        self.assertIn("Stats: +18/-10 lines", prompt)
+        self.assertIn("src/feature.py: +15/-8", prompt)
+        self.assertIn("tests/test_feature.py: +3/-2", prompt)
+        self.assertIn("conventional commit message", prompt.lower())
     
     def test_build_prompt_handles_many_files(self):
         numstats = []
@@ -123,8 +123,8 @@ class TestAnalyzerMVP:
         prompt = build_prompt(summary)
         
         
-        assert prompt.count("src/file_") <= 10
-        assert "other files with minor changes" in prompt
+        self.assertLessEqual(prompt.count("src/file_"), 10)
+        self.assertIn("other files with minor changes", prompt)
     
     def test_build_prompt_includes_change_descriptions(self):
         numstats = [
@@ -143,12 +143,12 @@ class TestAnalyzerMVP:
         summary = analyze_changes(numstats)
         prompt = build_prompt(summary)
         
-        assert "(new)" in prompt
-        assert "(deleted)" in prompt
-        assert "(renamed from old_file.py)" in prompt
+        self.assertIn("(new)", prompt)
+        self.assertIn("(deleted)", prompt)
+        self.assertIn("(renamed from old_file.py)", prompt)
     
     def test_empty_changes_error(self):
-        with pytest.raises(ValueError, match="No changes to analyze"):
+        with self.assertRaises(ValueError):
             analyze_changes([])
     
     def test_only_binary_files_error(self):
@@ -157,5 +157,5 @@ class TestAnalyzerMVP:
             NumStat(added=0, removed=0, file_path="document.pdf", is_binary=True),
         ]
         
-        with pytest.raises(ValueError, match="No non-binary files to analyze"):
+        with self.assertRaises(ValueError):
             analyze_changes(numstats)

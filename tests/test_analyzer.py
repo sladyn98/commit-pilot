@@ -1,144 +1,38 @@
-import pytest
+import unittest
 
-from edgecommit.core.analyzer import DiffStats, DiffSummary, FileDiff, analyze_diff
+from edgecommit.core.analyzer import analyze_changes, build_prompt
+from edgecommit.core.git import NumStat
 
 
-class TestAnalyzeDiff:
-    def test_empty_diff_raises_error(self):
-        with pytest.raises(ValueError, match="Empty diff provided"):
-            analyze_diff("")
-
-    def test_single_file_addition(self):
-        diff = """diff --git a/src/main.py b/src/main.py
-new file mode 100644
-index 0000000..1234567
---- /dev/null
-+++ b/src/main.py
-@@ -0,0 +1,3 @@
-+def hello():
-+    print("Hello, World!")
-+    return True"""
+class TestAnalyzer(unittest.TestCase):
+    def test_analyze_changes_basic(self):
+        numstats = [
+            NumStat(added=10, removed=5, file_path="src/main.py", is_binary=False),
+            NumStat(added=3, removed=1, file_path="tests/test_main.py", is_binary=False),
+        ]
         
-        result = analyze_diff(diff)
+        summary = analyze_changes(numstats)
         
-        assert result.stats.files_changed == 1
-        assert result.stats.insertions == 3
-        assert result.stats.deletions == 0
-        assert len(result.files) == 1
-        assert result.files[0].path == "src/main.py"
-        assert result.files[0].is_new is True
-        assert result.files[0].additions == 3
-        assert result.change_type == "feat"
-        assert "Added src/main.py" in result.primary_changes
-
-    def test_file_deletion(self):
-        diff = """diff --git a/old_file.py b/old_file.py
-deleted file mode 100644
-index 1234567..0000000
---- a/old_file.py
-+++ /dev/null
-@@ -1,2 +0,0 @@
--def old_function():
--    pass"""
+        assert summary.total_files == 2
+        assert summary.total_added == 13
+        assert summary.total_removed == 6
+        assert summary.change_type == "test"
+        assert len(summary.files) == 2
+    
+    def test_build_prompt_basic(self):
+        numstats = [
+            NumStat(added=15, removed=8, file_path="src/feature.py", is_binary=False),
+            NumStat(added=3, removed=2, file_path="tests/test_feature.py", is_binary=False),
+        ]
         
-        result = analyze_diff(diff)
+        summary = analyze_changes(numstats)
+        prompt = build_prompt(summary)
         
-        assert result.stats.files_changed == 1
-        assert result.stats.insertions == 0
-        assert result.stats.deletions == 2
-        assert result.files[0].is_deleted is True
-        assert "Deleted old_file.py" in result.primary_changes
-
-    def test_file_modification(self):
-        diff = """diff --git a/src/utils.py b/src/utils.py
-index 1234567..abcdefg 100644
---- a/src/utils.py
-+++ b/src/utils.py
-@@ -1,3 +1,4 @@
- def existing():
--    return False
-+    
-+    return True
-+    
-        
-        result = analyze_diff(diff)
-        
-        assert result.stats.files_changed == 1
-        assert result.stats.insertions == 3
-        assert result.stats.deletions == 1
-        assert result.change_type == "fix"  
-
-    def test_multiple_files(self):
-        diff = """diff --git a/file1.py b/file1.py
-index 1234567..abcdefg 100644
---- a/file1.py
-+++ b/file1.py
-@@ -1,2 +1,3 @@
- def func1():
-+    
-     pass
-diff --git a/file2.py b/file2.py
-new file mode 100644
-index 0000000..1234567
---- /dev/null
-+++ b/file2.py
-@@ -0,0 +1,2 @@
-+def func2():
-+    pass"""
-        
-        result = analyze_diff(diff)
-        
-        assert result.stats.files_changed == 2
-        assert result.stats.insertions == 3
-        assert result.stats.deletions == 0
-        assert len(result.files) == 2
-
-    def test_test_file_classification(self):
-        diff = """diff --git a/tests/test_feature.py b/tests/test_feature.py
-new file mode 100644
-index 0000000..1234567
---- /dev/null
-+++ b/tests/test_feature.py
-@@ -0,0 +1,3 @@
-+def test_something():
-+    assert True
-+    pass"""
-        
-        result = analyze_diff(diff)
-        assert result.change_type == "test"
-
-    def test_docs_classification(self):
-        diff = """diff --git a/README.md b/README.md
-index 1234567..abcdefg 100644
---- a/README.md
-+++ b/README.md
-@@ -1,1 +1,2 @@
- 
-+Documentation update"""
-        
-        result = analyze_diff(diff)
-        assert result.change_type == "docs"
-
-    def test_style_classification(self):
-        diff = """diff --git a/styles.css b/styles.css
-index 1234567..abcdefg 100644
---- a/styles.css
-+++ b/styles.css
-@@ -1,1 +1,2 @@
- .class { color: red; }
-+.new-class { color: blue; }"""
-        
-        result = analyze_diff(diff)
-        assert result.change_type == "style"
-
-    def test_file_rename(self):
-        diff = """diff --git a/old_name.py b/new_name.py
-similarity index 100%
-rename from old_name.py
-rename to new_name.py"""
-        
-        result = analyze_diff(diff)
-        
-        assert len(result.files) == 1
-        assert result.files[0].is_renamed is False  
-        assert result.files[0].path == "new_name.py"
+        assert "Type: test" in prompt
+        assert "Files: 2 files changed" in prompt
+        assert "Stats: +18/-10 lines" in prompt
+        assert "conventional commit message" in prompt.lower()
+    
+    def test_empty_changes_error(self):
+        with self.assertRaises(ValueError):
+            analyze_changes([])

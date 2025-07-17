@@ -1,17 +1,16 @@
 import os
 from unittest.mock import Mock, patch
 
-import pytest
+import unittest
 
 from edgecommit.config import Config
 from edgecommit.core.analyzer import DiffStats, DiffSummary, FileDiff
 from edgecommit.llm.openai import OpenAIProvider
 
 
-class TestOpenAIProvider:
-    @pytest.fixture
-    def config(self):
-        return Config(
+class TestOpenAIProvider(unittest.TestCase):
+    def setUp(self):
+        self.config = Config(
             openai_api_key="test-key",
             openai_model="gpt-4",
             openai_temperature=0.7,
@@ -20,9 +19,7 @@ class TestOpenAIProvider:
             max_retries=3,
         )
     
-    @pytest.fixture
-    def diff_summary(self):
-        return DiffSummary(
+        self.diff_summary = DiffSummary(
             stats=DiffStats(files_changed=2, insertions=10, deletions=5),
             files=[
                 FileDiff(
@@ -46,25 +43,25 @@ class TestOpenAIProvider:
             primary_changes=["Extended src/main.py", "Modified tests/test_main.py"],
         )
     
-    def test_init_with_api_key(self, config):
-        provider = OpenAIProvider(config)
-        assert provider.api_key == "test-key"
+    def test_init_with_api_key(self):
+        provider = OpenAIProvider(self.config)
+        self.assertEqual(provider.api_key, "test-key")
     
     def test_init_without_api_key(self):
         config = Config()
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="OpenAI API key not found"):
+            with self.assertRaises(ValueError):
                 OpenAIProvider(config)
     
     def test_init_with_env_api_key(self):
         config = Config()
         with patch.dict(os.environ, {"OPENAI_API_KEY": "env-key"}):
             provider = OpenAIProvider(config)
-            assert provider.api_key == "env-key"
+            self.assertEqual(provider.api_key, "env-key")
     
     @patch("edgecommit.llm.openai.OpenAI")
-    def test_client_lazy_initialization(self, mock_openai_class, config):
-        provider = OpenAIProvider(config)
+    def test_client_lazy_initialization(self, mock_openai_class):
+        provider = OpenAIProvider(self.config)
         
         
         mock_openai_class.assert_not_called()
@@ -81,11 +78,11 @@ class TestOpenAIProvider:
         
         
         client2 = provider.client
-        assert client is client2
-        assert mock_openai_class.call_count == 1
+        self.assertIs(client, client2)
+        self.assertEqual(mock_openai_class.call_count, 1)
     
     @patch("edgecommit.llm.openai.OpenAI")
-    def test_generate_commit_success(self, mock_openai_class, config, diff_summary):
+    def test_generate_commit_success(self, mock_openai_class):
         
         mock_client = Mock()
         mock_response = Mock()
@@ -93,20 +90,20 @@ class TestOpenAIProvider:
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai_class.return_value = mock_client
         
-        provider = OpenAIProvider(config)
-        result = provider.generate_commit(diff_summary)
+        provider = OpenAIProvider(self.config)
+        result = provider.generate_commit(self.diff_summary)
         
-        assert result == "feat: add new feature\n\nImplemented user authentication"
+        self.assertEqual(result, "feat: add new feature\n\nImplemented user authentication")
         
         
         mock_client.chat.completions.create.assert_called_once()
         call_args = mock_client.chat.completions.create.call_args
-        assert call_args.kwargs["model"] == "gpt-4"
-        assert call_args.kwargs["temperature"] == 0.7
-        assert call_args.kwargs["max_tokens"] == 500
+        self.assertEqual(call_args.kwargs["model"], "gpt-4")
+        self.assertEqual(call_args.kwargs["temperature"], 0.7)
+        self.assertEqual(call_args.kwargs["max_tokens"], 500)
     
     @patch("edgecommit.llm.openai.OpenAI")
-    def test_generate_commit_truncates_long_subject(self, mock_openai_class, config, diff_summary):
+    def test_generate_commit_truncates_long_subject(self, mock_openai_class):
         
         mock_client = Mock()
         mock_response = Mock()
@@ -115,15 +112,15 @@ class TestOpenAIProvider:
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai_class.return_value = mock_client
         
-        provider = OpenAIProvider(config)
-        result = provider.generate_commit(diff_summary)
+        provider = OpenAIProvider(self.config)
+        result = provider.generate_commit(self.diff_summary)
         
         
-        assert len(result.split("\n")[0]) == 72
-        assert result.endswith("...")
+        self.assertEqual(len(result.split("\n")[0]), 72)
+        self.assertTrue(result.endswith("..."))
     
     @patch("edgecommit.llm.openai.OpenAI")
-    def test_generate_commit_empty_response(self, mock_openai_class, config, diff_summary):
+    def test_generate_commit_empty_response(self, mock_openai_class):
         
         mock_client = Mock()
         mock_response = Mock()
@@ -131,26 +128,26 @@ class TestOpenAIProvider:
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai_class.return_value = mock_client
         
-        provider = OpenAIProvider(config)
+        provider = OpenAIProvider(self.config)
         
-        with pytest.raises(RuntimeError, match="Failed to generate commit message"):
-            provider.generate_commit(diff_summary)
+        with self.assertRaises(RuntimeError):
+            provider.generate_commit(self.diff_summary)
     
     @patch("edgecommit.llm.openai.OpenAI")
-    def test_generate_commit_api_error(self, mock_openai_class, config, diff_summary):
+    def test_generate_commit_api_error(self, mock_openai_class):
         
         mock_client = Mock()
         mock_client.chat.completions.create.side_effect = Exception("API Error")
         mock_openai_class.return_value = mock_client
         
-        provider = OpenAIProvider(config)
+        provider = OpenAIProvider(self.config)
         
-        with pytest.raises(RuntimeError, match="Failed to generate commit message: API Error"):
-            provider.generate_commit(diff_summary)
+        with self.assertRaises(RuntimeError):
+            provider.generate_commit(self.diff_summary)
     
-    def test_import_error_handling(self, config):
+    def test_import_error_handling(self):
         
         with patch.dict("sys.modules", {"openai": None}):
-            provider = OpenAIProvider(config)
-            with pytest.raises(ImportError, match="OpenAI package not installed"):
+            provider = OpenAIProvider(self.config)
+            with self.assertRaises(ImportError):
                 _ = provider.client

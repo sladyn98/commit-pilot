@@ -122,3 +122,32 @@ Files: {summary.total_files} files changed
 Stats: +{summary.total_added}/-{summary.total_removed} lines
 
 Files changed:
+"""
+    
+    significant = summary.significant_files
+    other_files = [f for f in summary.files if f not in significant]
+    
+    for file in significant[:10]:
+        change_desc = ""
+        if file.change_type == "added":
+            change_desc = " (new)"
+        elif file.change_type == "deleted":
+            change_desc = " (deleted)"
+        elif file.change_type == "renamed":
+            change_desc = f" (renamed from {file.old_path})"
+        
+        prompt += f"- {file.path}: +{file.added}/-{file.removed}{change_desc}\n"
+    
+    if other_files:
+        prompt += f"- ... and {len(other_files)} other files with minor changes\n"
+    
+    prompt += """
+Generate a conventional commit message:
+- Format: <type>(<scope>): <subject>
+- Subject: imperative mood, no period, <50 chars
+- Body: explain what and why (2-3 lines max)
+- Types: feat, fix, docs, style, refactor, perf, test, chore
+
+Return only the commit message."""
+    
+    return prompt

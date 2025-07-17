@@ -119,17 +119,18 @@ def create_commit(message: str, cwd: Optional[Path] = None) -> None:
 
 
 def get_editor_fallback_template() -> str:
-    return """
-
-
-
+    return """# Auto-commit fallback - please edit this commit message
+# 
+# Staged changes detected but could not generate AI commit message.
+# Please write a conventional commit message:
 #
-
+# Format: <type>(<scope>): <subject>
 #
+# Types: feat, fix, docs, style, refactor, perf, test, chore
+# 
+# Example:
+# feat(auth): add user login validation
+# 
+# Body can be added below (optional):
 
-
-
-
-
-
-
+"""

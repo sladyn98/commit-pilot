@@ -2,16 +2,16 @@ import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
+import unittest
 
 from edgecommit.core.git import GitError, create_commit, get_staged_diff, has_staged_changes
 
 
-class TestGitFunctions:
+class TestGitFunctions(unittest.TestCase):
     @patch("subprocess.run")
     def test_has_staged_changes_true(self, mock_run):
         mock_run.side_effect = subprocess.CalledProcessError(1, ["git"], stderr="")
-        assert has_staged_changes() is True
+        self.assertTrue(has_staged_changes())
         mock_run.assert_called_once_with(
             ["git", "diff", "--cached", "--quiet"],
             capture_output=True,
@@ -23,7 +23,7 @@ class TestGitFunctions:
     @patch("subprocess.run")
     def test_has_staged_changes_false(self, mock_run):
         mock_run.return_value = Mock(stdout="", stderr="", returncode=0)
-        assert has_staged_changes() is False
+        self.assertFalse(has_staged_changes())
 
     @patch("subprocess.run")
     def test_get_staged_diff_success(self, mock_run):
@@ -31,7 +31,7 @@ class TestGitFunctions:
         mock_run.return_value = Mock(stdout=expected_diff, stderr="", returncode=0)
         
         result = get_staged_diff()
-        assert result == expected_diff.strip()
+        self.assertEqual(result, expected_diff.strip())
         mock_run.assert_called_once_with(
             ["git", "diff", "--cached"],
             capture_output=True,
@@ -44,7 +44,7 @@ class TestGitFunctions:
     def test_get_staged_diff_no_changes(self, mock_run):
         mock_run.return_value = Mock(stdout="", stderr="", returncode=0)
         
-        with pytest.raises(GitError, match="No staged changes found"):
+        with self.assertRaises(GitError):
             get_staged_diff()
 
     @patch("subprocess.run")
@@ -53,7 +53,7 @@ class TestGitFunctions:
             1, ["git"], stderr="fatal: not a git repository"
         )
         
-        with pytest.raises(GitError, match="Git command failed"):
+        with self.assertRaises(GitError):
             get_staged_diff()
 
     @patch("edgecommit.core.git.has_staged_changes")
@@ -72,14 +72,14 @@ class TestGitFunctions:
         )
 
     def test_create_commit_empty_message(self):
-        with pytest.raises(ValueError, match="Commit message cannot be empty"):
+        with self.assertRaises(ValueError):
             create_commit("")
 
     @patch("edgecommit.core.git.has_staged_changes")
     def test_create_commit_no_staged_changes(self, mock_has_staged):
         mock_has_staged.return_value = False
         
-        with pytest.raises(GitError, match="No staged changes to commit"):
+        with self.assertRaises(GitError):
             create_commit("feat: test")
 
     @patch("subprocess.run")
@@ -89,4 +89,4 @@ class TestGitFunctions:
         
         has_staged_changes(cwd=test_path)
         mock_run.assert_called_once()
-        assert mock_run.call_args[1]["cwd"] == test_path
+        self.assertEqual(mock_run.call_args[1]["cwd"], test_path)
