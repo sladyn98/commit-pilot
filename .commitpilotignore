@@ -1,0 +1,39 @@
+# Binary files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
+*.svg
+*.woff
+*.woff2
+*.ttf
+*.eot
+*.pdf
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# Lock files
+package-lock.json
+yarn.lock
+Pipfile.lock
+poetry.lock
+composer.lock
+Gemfile.lock
+
+# Generated files
+*.min.js
+*.min.css
+dist/
+build/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+Thumbs.db
